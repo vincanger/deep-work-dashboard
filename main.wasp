@@ -1,6 +1,6 @@
 app DeepWork {
   wasp: {
-    version: "^0.7.3"
+    version: "^0.8.0"
   },
 
   title: "DeepWork",
@@ -56,7 +56,17 @@ page SignupPage {
   component: import Main from "@client/SignupPage"
 }
 
-query getWork {
-  fn: import { getWork } from "@server/queries.js",
+query getTotalWork {
+  fn: import { getTotalWork } from "@server/queries.js",
+  entities: [Work]
+}
+
+query getWorkByYear {
+  fn: import { getWorkByYear } from "@server/queries.js",
+  entities: [Work]
+}
+
+query getTotalHours {
+  fn: import { getTotalHours } from "@server/queries.js",
   entities: [Work]
 }

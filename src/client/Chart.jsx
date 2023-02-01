@@ -1,5 +1,8 @@
 import React from 'react';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Label } from 'recharts';
+import { useQuery } from '@wasp/queries';
+import getWorkByYear from '@wasp/queries/getWorkByYear';
+import getTotalHours from '@wasp/queries/getTotalHours';
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Label } from 'recharts';
 
 const months = [
   'Total',
@@ -17,97 +20,77 @@ const months = [
   'December',
 ];
 
-function Chart({ work }) {
-  const [parsedDays, setparsedDays] = React.useState([]);
-  const [totalMinutes, setTotalMinutes] = React.useState(0);
-  const [parsedWeeks, setParsedWeeks] = React.useState([]);
-  const [isDataSet, setIsDataSet] = React.useState(false);
-  const [monthToView, setMonthToView] = React.useState(0);
+function getUniqueYears(work) {
+  const years = work.map((w) => {
+    const date = new Date(w.timeStarted);
+    return date.getFullYear();
+  });
+  const uniqueYears = [...new Set(years)];
+  return uniqueYears;
+}
 
-  function getWeekNumber(date) {
-    const start = new Date(date.getFullYear(), 0, 0);
-    const diff = date - start;
-    const oneDay = 1000 * 60 * 60 * 24;
-    const day = Math.floor(diff / oneDay);
-    return Math.floor(day / 7) + 1;
+function getWeekNumber(date) {
+  const start = new Date(date.getFullYear(), 0, 0);
+  const diff = date - start;
+  const oneDay = 1000 * 60 * 60 * 24;
+  const day = Math.floor(diff / oneDay);
+  return Math.floor(day / 7) + 1;
+}
+
+function reducedWeeks(work, monthToView) {
+  const reducedWeeks = work.reduce((acc, x) => {
+    const date = new Date(x.timeStarted);
+    const week = getWeekNumber(date);
+    const month = date.getMonth();
+
+    if (monthToView !== 0 && monthToView !== month + 1) {
+      return acc;
+    }
+
+    let weekObject = acc.find((item) => item.week === week);
+
+    if (!weekObject) {
+      weekObject = { week: week, month: month, minutes: 0 };
+      acc.push(weekObject);
+    }
+    weekObject.minutes += Number(x.minutes);
+    weekObject.month = month;
+    return acc;
+  }, []);
+  if (monthToView !== 0) {
+    return reducedWeeks.filter((week) => {
+      return week.month + 1 === monthToView;
+    });
   }
+  return reducedWeeks;
+}
+
+function Chart({ work }) {
+  const [isDataSet, setIsDataSet] = React.useState(false);
+  const [uniqueYears, setUniqueYears] = React.useState([]);
+  const [parsedDays, setparsedDays] = React.useState([]);
+  const [parsedWeeks, setParsedWeeks] = React.useState([]);
+  const [yearToView, setYearToView] = React.useState(new Date().getFullYear());
+  const [monthToView, setMonthToView] = React.useState(new Date().getMonth() + 1);
+
+  const { data: workByYear } = useQuery(getWorkByYear, { year: yearToView });
+  const { data: totalMinutes } = useQuery(getTotalHours);
 
   React.useMemo(() => {
-    const month = new Date().getMonth();
-    setMonthToView(month + 1);
-  }, []);
+    setUniqueYears(getUniqueYears(work));
+  }, [work]);
 
   React.useEffect(() => {
-    setIsDataSet(false);
-    if (work) {
-      /** PER DAY */
+    if (work && workByYear) {
+      setIsDataSet(false);
 
-      const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-
-      const addMissingDays = (work) => {
-        const modifiedWork = [];
-
-        for (let i = 0; i < work.length; i++) {
-          const currentWork = work[i];
-          const previousWork = i > 0 ? work[i - 1] : null;
-
-          if (previousWork) {
-            const currentTimeStarted = new Date(currentWork.timeStarted);
-            const previousTimeStarted = new Date(previousWork.timeStarted);
-
-            if (currentTimeStarted > previousTimeStarted) {
-              const oneDay = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
-              const numDays = Math.round(Math.abs((currentTimeStarted - previousTimeStarted) / oneDay));
-              for (let j = 1; j < numDays; j++) {
-                const missingTimeStarted = new Date(previousTimeStarted.getTime() + oneDay * j);
-                const missingWork = {
-                  timeStarted: missingTimeStarted.toISOString(),
-                  minutes: 0,
-                };
-                modifiedWork.push(missingWork);
-              }
-            }
-          }
-
-          modifiedWork.push(currentWork);
-        }
-
-        return modifiedWork;
-      };
-
-      const modifiedWork = addMissingDays(work);
-
-      const reducedDays = modifiedWork.reduce((acc, x) => {
-        const timestamp = Date.parse(x.timeStarted);
-        const date = new Date(timestamp);
-        const dayOfWeek = daysOfWeek[date.getDay()];
-
-        let dayObject = acc.find((item) => {
-          return item.timeStarted === x.timeStarted.split('T')[0];
-        });
-
-        if (!dayObject) {
-          dayObject = { dayOfWeek: dayOfWeek, timeStarted: x.timeStarted.split('T')[0], minutes: 0 };
-          acc.push(dayObject);
-        }
-
-        dayObject.minutes += Number(x.minutes);
-        return acc;
-      }, []);
-
-      if (reducedDays.length > 0) {
-        reducedDays.sort((a, b) => daysOfWeek.indexOf(a.timeStarted) - daysOfWeek.indexOf(b.timeStarted));
+      if (yearToView === 0) {
+        setMonthToView(0);
       }
 
-      /** TOTAL MINUTES */
-
-      const totalMinutes = reducedDays.reduce((acc, x) => acc + x.minutes, 0);
-      setTotalMinutes(totalMinutes);
-
-      /** PER MONTH */
-
-      if (monthToView !== 0) {
-        const daysPerMonth = reducedDays.filter((day) => {
+      /** MIN PER DAY */
+      if (monthToView !== 0 && yearToView !== 0) {
+        const daysPerMonth = work.filter((day) => {
           const timestamp = Date.parse(day.timeStarted);
           const date = new Date(timestamp);
           const month = date.getMonth();
@@ -115,58 +98,33 @@ function Chart({ work }) {
           return month + 1 === monthToView;
         });
         if (daysPerMonth?.length > 0) {
-          daysPerMonth.sort((a, b) => daysOfWeek.indexOf(a.timeStarted) - daysOfWeek.indexOf(b.timeStarted));
           setparsedDays(daysPerMonth);
         } else {
           setparsedDays([]);
         }
       } else {
-        setparsedDays(reducedDays);
+        setparsedDays(work);
       }
 
-      /** PER WEEK */
-
-      const reducedWeeks = work.reduce((acc, x) => {
-        const date = new Date(x.timeStarted);
-        const week = getWeekNumber(date);
-        const month = date.getMonth();
-
-        let weekObject = acc.find((item) => item.week === week);
-
-        if (!weekObject) {
-          weekObject = { week: week, month: month, minutes: 0 };
-          acc.push(weekObject);
-        }
-        weekObject.minutes += Number(x.minutes);
-        return acc;
-      }, []);
-
-      // setParsedWeeks(reducedWeeks);
-
-      if (monthToView !== 0) {
-        const weeksPerMonth = reducedWeeks.filter((week) => {
-          return week.month + 1 === monthToView;
-        });
-        if (weeksPerMonth?.length > 0) {
-          setParsedWeeks(weeksPerMonth);
-        } else {
-          setParsedWeeks([]);
-        }
+      /** MIN PER WEEK */
+      const weeksPerMonth = reducedWeeks(work, monthToView);
+      if (weeksPerMonth?.length > 0) {
+        setParsedWeeks(weeksPerMonth);
       } else {
-        setParsedWeeks(reducedWeeks);
+        setParsedWeeks([]);
       }
 
       setIsDataSet(true);
     }
-  }, [work, monthToView]);
+  }, [work, workByYear, monthToView, yearToView]);
 
-  if (!isDataSet) return <p>Loading...</p>;
   return (
     <>
-      <h1>Total Deep Work Hours: {(totalMinutes / 60).toFixed(2)}</h1>
-      {/* create a dropdown */}
+      <h1>Total Deep Work Hours: {totalMinutes && (totalMinutes / 60).toFixed(2)}</h1>
+
       <select
         value={monthToView}
+        disabled={yearToView === 0}
         onChange={(e) => {
           setMonthToView(Number(e.target.value));
         }}
@@ -184,6 +142,14 @@ function Chart({ work }) {
         <option value={10}>October</option>
         <option value={11}>November</option>
         <option value={12}>December</option>
+      </select>
+      <select value={yearToView} onChange={(e) => setYearToView(Number(e.target.value))}>
+        <option value={0}>Total</option>
+        {uniqueYears.map((year) => (
+          <option key={year} value={year}>
+            {year}
+          </option>
+        ))}
       </select>
 
       {isDataSet && (
@@ -217,6 +183,12 @@ function Chart({ work }) {
             {/* <Legend /> */}
             <Bar dataKey='minutes' fill='#8884d8' />
           </BarChart>
+          {parsedWeeks.map((x) => (
+            <p>
+              {JSON.stringify(x)}
+              <br />
+            </p>
+          ))}
         </>
       )}
     </>
