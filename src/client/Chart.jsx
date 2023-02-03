@@ -1,4 +1,5 @@
 import React from 'react';
+import waspLogo from './waspLogo.png';
 import { useQuery } from '@wasp/queries';
 import getWorkByYear from '@wasp/queries/getWorkByYear';
 import getTotalHours from '@wasp/queries/getTotalHours';
@@ -120,7 +121,10 @@ function Chart({ work }) {
 
   return (
     <>
-      <h1>Total Deep Work Hours: {totalMinutes && (totalMinutes / 60).toFixed(2)}</h1>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <h1>Total Deep Work Hours: {totalMinutes && (totalMinutes / 60).toFixed(2)}</h1>
+        <img src={waspLogo} alt='Wasp Logo' height={'40px'} style={{ marginLeft: '15px' }}/>
+      </div>
 
       <select
         value={monthToView}
@@ -143,6 +147,7 @@ function Chart({ work }) {
         <option value={11}>November</option>
         <option value={12}>December</option>
       </select>
+
       <select value={yearToView} onChange={(e) => setYearToView(Number(e.target.value))}>
         <option value={0}>Total</option>
         {uniqueYears.map((year) => (
@@ -183,7 +188,8 @@ function Chart({ work }) {
             {/* <Legend /> */}
             <Bar dataKey='minutes' fill='#8884d8' />
           </BarChart>
-          {parsedWeeks.map((x) => (
+          <h2>Raw Data</h2>
+          {work.map((x) => (
             <p>
               {JSON.stringify(x)}
               <br />

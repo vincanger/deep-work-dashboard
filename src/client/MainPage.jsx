@@ -1,6 +1,5 @@
-// import waspLogo from './waspLogo.png';
-import React from 'react';
 import './Main.css';
+import React from 'react';
 import getTotalWork from '@wasp/queries/getTotalWork';
 import { useQuery } from '@wasp/queries';
 import Chart from './Chart';
@@ -13,7 +12,6 @@ const MainPage = () => {
   if (work)
     return (
       <main>
-        {/* <img src={waspLogo} alt='Wasp Logo' width={'40px'}/> */}
         <div>
           <Chart work={work} />
         </div>
